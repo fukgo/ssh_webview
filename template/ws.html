@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket Terminal</title>
+  <!-- 引入 Tailwind 和 Bootstrap -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+  
+  <style>
+    /* 固定布局高度和阴影效果 */
+    .terminal-container {
+      max-width: 900px;
+      margin: 50px auto;
+      border-radius: 12px;
+      background: linear-gradient(145deg, #1e1e1e, #272727);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .terminal-header {
+      background-color: #333;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      color: #fff;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .terminal-header span {
+      font-weight: bold;
+    }
+
+    .terminal-window {
+      height: 70vh;
+      background-color: #000;
+      color: #0f0;
+      font-family: monospace;
+      padding: 15px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      border-bottom: 2px solid #555;
+    }
+
+    .input-bar {
+      display: flex;
+      align-items: center;
+      background-color: #222;
+      padding: 10px;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+    }
+
+    .input-bar span {
+      color: #0f0;
+      margin-right: 10px;
+    }
+
+    .input-bar input {
+      background-color: #000;
+      color: #0f0;
+      border: 2px solid #555;
+      border-radius: 5px;
+      padding: 5px;
+      width: 100%;
+      outline: none;
+      caret-color: #0f0;
+    }
+
+    /* 输入框聚焦时的动态效果 */
+    .input-bar input:focus {
+      border-color: rgb(0, 47, 255);
+      box-shadow: 0 0 8px rgb(111, 0, 255);
+    }
+
+    /* 显示滚动条样式 */
+    .terminal-window::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    .terminal-window::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 5px;
+    }
+
+    .terminal-window::-webkit-scrollbar-track {
+      background: #333;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-900">
+
+  <div class="terminal-container">
+    <!-- 顶部窗口标题栏 -->
+    <div class="terminal-header">
+      <span>WebSocket SSH Terminal</span>
+      <span>Status: <span id="connectionStatus" class="text-success">Connecting...</span></span>
+    </div>
+
+    <!-- 显示区 -->
+    <div id="output" class="terminal-window"></div>
+
+    <!-- 输入区 -->
+    <div class="input-bar">
+      <span id="cmdPrompt">_</span>
+      <input type="text" id="messageInput" autofocus placeholder="Type your command here...">
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+
+    if (!id) {
+      alert('Missing id parameter in URL');
+      throw new Error('Missing id parameter in URL');
+    }
+
+    let currentPath = "\n"; 
+    let username = "\n"; 
+    let hostname = "\n"; 
+    let receivedCount = 0;
+
+    const ws = new WebSocket(`ws://localhost:800/ws?id=${id}`);
+
+    ws.onopen = function () {
+      document.getElementById("connectionStatus").textContent = "Connected";
+      document.getElementById("connectionStatus").classList.remove('text-danger');
+      document.getElementById("connectionStatus").classList.add('text-success');
+      
+      appendOutput("Connected to the server.");
+      ws.send(JSON.stringify({ command: "pwd" }));
+      ws.send(JSON.stringify({ command: "hostname" }));
+      ws.send(JSON.stringify({ command: "whoami" }));
+    };
+
+    ws.onmessage = function (event) {
+      const data = JSON.parse(event.data);
+
+      if (data.command === "pwd") {
+        currentPath = data.response.trim();
+        receivedCount++;
+      } else if (data.command === "hostname") {
+        hostname = data.response.trim();
+        receivedCount++;
+      } else if (data.command === "whoami") {
+        username = data.response.trim();
+        receivedCount++;
+      }
+
+      if (receivedCount === 3) {
+        updatePrompt();
+      }
+
+      appendOutput(`Output: ${data.response}`);
+    };
+
+    ws.onclose = function () {
+      appendOutput("Disconnected from the server.");
+      document.getElementById("connectionStatus").textContent = "Disconnected";
+      document.getElementById("connectionStatus").classList.remove('text-success');
+      document.getElementById("connectionStatus").classList.add('text-danger');
+    };
+
+    ws.onerror = function (error) {
+      appendOutput(`WebSocket Error: ${error.message}`);
+    };
+
+    document.getElementById("messageInput").addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        const message = this.value;
+        if (message.trim() === '') return;
+
+        if (ws.readyState === WebSocket.OPEN) {
+          const msg = { command: message };
+          ws.send(JSON.stringify(msg));
+          appendOutput(`Input: ${message}`);
+
+          if (message.startsWith("cd ")) {
+            const targetPath = message.split(" ")[1];
+            if (targetPath) {
+              currentPath = targetPath;
+              updatePrompt();
+            }
+          }
+
+          this.value = '';  
+        } else {
+          appendOutput("WebSocket is not open. Please try again later.");
+        }
+      }
+    });
+
+    function updatePrompt() {
+      document.getElementById("cmdPrompt").textContent = `${username}@${hostname}:${currentPath}$ `;
+    }
+
+    function appendOutput(message) {
+      const outputDiv = document.getElementById("output");
+      outputDiv.textContent += message + "\n";
+      outputDiv.scrollTop = outputDiv.scrollHeight;
+    }
+  </script>
+
+</body>
+
+</html>

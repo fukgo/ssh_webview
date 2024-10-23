@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Connection</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+<div class="flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h2 class="text-2xl font-semibold text-center mb-6">远程 SSH 设备</h2>
+
+        <form id="ssh-form" class="space-y-4">
+            <!-- 主机地址 -->
+            <div>
+                <label for="host" class="block text-sm font-medium text-gray-700">主机地址:</label>
+                <input type="text" id="host" name="host" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+            </div>
+
+            <!-- 端口 -->
+            <div>
+                <label for="port" class="block text-sm font-medium text-gray-700">端口:</label>
+                <input type="number" id="port" name="port" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="22" required>
+            </div>
+
+            <!-- 用户名 -->
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">用户名:</label>
+                <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+            </div>
+
+            <!-- 连接方式选择 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700">连接方式:</label>
+                <div class="flex items-center space-x-4">
+                    <label class="flex items-center">
+                        <input type="radio" name="auth_method" value="password" class="auth-method" checked>
+                        <span class="ml-2 text-sm">密码</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="auth_method" value="key" class="auth-method">
+                        <span class="ml-2 text-sm">密钥</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 密码输入框 -->
+            <div id="password-group">
+                <label for="password" class="block text-sm font-medium text-gray-700">密码:</label>
+                <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+            </div>
+
+            <!-- 密钥文件上传 -->
+            <div id="key-group" class="hidden">
+                <label for="private_key" class="block text-sm font-medium text-gray-700">私钥文件:</label>
+                <input type="file" id="private_key" name="private_key" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            </div>
+
+            <!-- 提交按钮 -->
+            <div>
+                <button type="submit" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    提交
+                </button>
+            </div>
+        </form>
+
+        <!-- 输出显示 -->
+        <pre id="output" class="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm"></pre>
+    </div>
+</div>
+
+<script>
+    // 切换显示密码或密钥上传输入框
+    const authMethodRadios = document.querySelectorAll('input[name="auth_method"]');
+    const passwordGroup = document.getElementById('password-group');
+    const keyGroup = document.getElementById('key-group');
+    const passwordInput = document.getElementById('password');
+    const privateKeyInput = document.getElementById('private_key');
+
+    authMethodRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'password') {
+                passwordGroup.classList.remove('hidden');
+                keyGroup.classList.add('hidden');
+                passwordInput.setAttribute('required', 'required');
+                privateKeyInput.removeAttribute('required');
+            } else {
+                passwordGroup.classList.add('hidden');
+                keyGroup.classList.remove('hidden');
+                passwordInput.removeAttribute('required');
+                privateKeyInput.setAttribute('required', 'required');
+            }
+        });
+    });
+
+    document.getElementById('ssh-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const host = document.getElementById('host').value;
+        const port = document.getElementById('port').value;
+        const username = document.getElementById('username').value;
+        const authMethod = document.querySelector('input[name="auth_method"]:checked').value;
+        let password = '', privateKey = '';
+
+        // 设置 authway 参数
+        const authway = authMethod;
+
+        if (authMethod === 'password') {
+            password = document.getElementById('password').value;
+        } else {
+            const keyFile = document.getElementById('private_key').files[0];
+            privateKey = await keyFile.text();  // 读取密钥文件内容
+        }
+
+        console.log({ 
+            host,
+            port,
+            username,
+            password,
+            privateKey,
+            authMethod
+        });
+
+        const response = await fetch(`http://127.0.0.1:8000/api/ssh?authway=${authway}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ host, port, username, password, privateKey, authMethod }),
+        });
+
+        const result = await response.json();
+        document.getElementById('output').textContent = result.message;
+        console.log(result);
+    });
+</script>
+</body>
+</html>

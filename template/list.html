@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Connections List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
+            <h2 class="text-2xl font-semibold text-center mb-6">SSH 连接列表</h2>
+
+            <!-- 新增 SSH 跳转 -->
+            <div class="flex justify-end mb-4">
+                <a href="./index.html" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    新增 SSH
+                </a>
+            </div>
+
+            <!-- SSH 列表 -->
+            <div id="ssh-list" class="space-y-4">
+                <!-- 动态渲染 SSH 连接列表 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 调用 API 获取 SSH 列表
+        async function fetchSSHList() {
+            const response = await fetch('http://127.0.0.1:8000/api/list-ssh');
+            const result = await response.json();
+
+            if (result.message === "list ssh success") {
+                renderSSHList(result.data);  // 渲染 data 字段
+            } else {
+                alert('获取 SSH 列表失败');
+            }
+        }
+
+        // 渲染 SSH 列表
+        function renderSSHList(data) {
+            const sshList = document.getElementById('ssh-list');
+            sshList.innerHTML = ''; // 清空列表
+
+            data.forEach(ssh => {
+                const sshItem = document.createElement('div');
+                sshItem.className = 'bg-gray-50 p-4 rounded-lg border border-gray-200';
+
+                sshItem.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p><strong>主机地址:</strong> ${ssh.host}</p>
+                            <p><strong>端口:</strong> ${ssh.port}</p>
+                            <p><strong>用户名:</strong> ${ssh.user}</p>
+                            <p><strong>连接方式:</strong> ${ssh.auth_method}</p>
+                        </div>
+                        <div class="space-x-4">
+                            <!-- 连接按钮 -->
+                            <a href="./ws.html?id=${ssh.id}" class="text-blue-600 hover:underline" target="_blank">连接</a>
+                            <!-- 删除按钮 -->
+                            <button onclick="deleteSSH(${ssh.id})" class="text-red-600 hover:underline">删除</button>
+                        </div>
+                    </div>
+                `;
+
+                sshList.appendChild(sshItem);
+            });
+        }
+
+        // 删除 SSH 连接
+        async function deleteSSH(id) {
+            const confirmDelete = confirm("确定要删除该 SSH 连接吗？");
+            if (!confirmDelete) return;
+
+            const response = await fetch(`http://127.0.0.1:8000/api/delete-ssh/${id}`, {
+                method: 'DELETE',
+            });
+
+            const result = await response.json();
+            console.log(result);
+            if (result.success) {
+                alert('删除成功');
+                fetchSSHList();  // 重新获取列表
+            } else {
+                alert('删除失败');
+            }
+        }
+
+        // 页面加载时调用
+        document.addEventListener('DOMContentLoaded', fetchSSHList);
+    </script>
+</body>
+</html>
